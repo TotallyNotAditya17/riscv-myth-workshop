@@ -1,135 +1,195 @@
-# RISC-V_MYTH_Workshop
+# RISC-V MYTH Workshop: 5-Stage RV32I Core & Hardware Labs
+> **Microprocessor for You in Thirty Hours (MYTH) Workshop**  
+> Organized by **VLSI System Design (VSD)** & **Redwood EDA**  
+> **Author:** [Aditya Nanda](https://github.com/TotallyNotAditya17) (`TotallyNotAditya17`)
 
-For students of ["Microprocessor for You in Thirty Hours/THree weeks" (MYTH) Workshop](https://www.vlsisystemdesign.com/riscv-based-myth/), offered by [Redwood EDA](https://www.redwoodeda.com/) and training partners [VLSI System Design (VSD)](https://www.vlsisystemdesign.com/) and [The EEView](https://theeeview.com). Find here accompanying live info and links for "Day 3" - "Day 5" (which may not correspond to actual days, depending on the delivery format).
+---
 
-## About the Workshop
+## 📋 Overview
+This repository contains the complete laboratory implementations, source code, verification testbenches, and hardware models developed during the 5-day **RISC-V MYTH Workshop**. The curriculum covers the end-to-end journey from high-level C programming, compiler optimization, and assembly language execution on the Spike ISA simulator to architecting, pipelining, and verifying a synthesizable **5-stage RISC-V (RV32I) CPU core** using **Transaction-Level Verilog (TL-Verilog)** on the **Makerchip** platform.
 
-This workshop has recieved a great deal of attention in the RISC-V community for enabling students to learn at a pace never before possible through the use of TL-Verilog and [Makerchip](https://makerchip.com). Some links:
-  - [Workshop info](https://www.vlsisystemdesign.com/vsd-iat/)
-  - riscv.org blogs about [13-year-old Nicholas Sharkey](https://riscv.org/blog/2020/11/13-year-old-nicholas-sharkey-creates-a-risc-v-core/) and [12-year-old Niel Josiah](https://riscv.org/blog/2020/12/risc-v-microarchitecture-for-kids-steve-hoover-redwood-eda/)
-  - [Linkedin posts](https://www.linkedin.com/search/results/all/?keywords=%23mythworkshop&origin=GLOBAL_SEARCH_HEADER)
-  - [riscv.org's maintains a list of RISC-V cores, including MYTH cores](https://riscv.org/exchange/)
+---
 
-## Slack
+## 📑 Table of Contents
+1. [Day 1: Introduction to RISC-V ISA and GNU Toolchain](#-day-1-introduction-to-risc-v-isa-and-gnu-toolchain)
+2. [Day 2: Application Binary Interface (ABI) & Microprocessor Execution](#-day-2-application-binary-interface-abi--microprocessor-execution)
+3. [Day 3: Digital Logic & Arithmetic Circuits in TL-Verilog](#-day-3-digital-logic--arithmetic-circuits-in-tl-verilog)
+4. [Day 4: Microarchitecture Design & Basic RISC-V Core](#-day-4-microarchitecture-design--basic-risc-v-core)
+5. [Day 5: Pipelined RV32I Processor with Hazard Handling](#-day-5-pipelined-rv32i-processor-with-hazard-handling)
+6. [Repository Structure](#-repository-structure)
+7. [Author & Acknowledgements](#-author--acknowledgements)
 
-You should have been invited to a Slack workspace for collaborative discussions.
+---
 
-  - If you have not already been added to the established Slack channels, request to be added.
-  - Please introduce yourself in the appropriate channel.
-  - Use the provided channels appropriately to ask questions throughout the workshop. Mentors monitor Slack nearly 24 hours/day throughout the workshop.
-  - The search box at the top is your friend. Others may have encountered similar issues.
+## 🚀 Day 1: Introduction to RISC-V ISA and GNU Toolchain
 
-## VSD-IAT (for Day 1-2 content only, if included)
+### 1. C Code Compilation with RISC-V GCC
+A basic C program calculating the summation of integers from 1 to $N$ (`Day2/Lab1/sum1ton.c`) was compiled with different optimization flags (`-O1` and `-Ofast`) targeting the 64-bit RISC-V base architecture (`rv64i` with `lp64` ABI):
 
-You should already be up and running with the [VLSI Design Systems - Intelligent Assessment Technology platform](https://vsdiat.com/). If you missed the live tutorial in the first call, the recording should have been posted in Slack, and you can search for it.
+```bash
+riscv64-unknown-elf-gcc -O1 -march=rv64i -mabi=lp64 -o sum1ton_O1.o sum1ton.c
+riscv64-unknown-elf-gcc -Ofast -march=rv64i -mabi=lp64 -o sum1ton_Ofast.o sum1ton.c
+```
 
-## GitHub Classroom Setup and Lab Submissions
+### 2. Disassembly & Instruction Optimization Analysis
+The generated binary files were disassembled using `riscv64-unknown-elf-objdump` to examine how GCC optimizes assembly routines:
 
-Lab submissions begin on Day 2 and are done via GitHub Classroom. You should receive a link to join prior to Day 2. For this course, all interactions with your GitHub repository can be done from your browser. You can add files using the "Add File" dropdown menu. You can edit a text file by navigating to it and clicking the pencil icon. Live training is provided, and the recording should have been posted in Slack.
+```bash
+riscv64-unknown-elf-objdump -d sum1ton_O1.o | grep -A 12 "<main>:"
+```
 
-Submission process:
+![Objdump Disassembly](Images/disassemble.png)
 
-  - Day 2: We just want to see that you have done the work. Capture a few screenshots and save them in the `Day2` folder of your repository.
-  - Day 3-5: Labs involving the calculator or RISC-V CPU should be submitted. If you miss a few, don't sweat it, but we want to see your progress. For each calculator or RISC-V lab:
-    - Open your github classroom repository in your web browser.
-    - Navigate into the `Day3_5` folder and the corresponding `calculator_solutions.tlv` or `risc-v_solutions.tlv`.
-    - Click edit (pencil).
-    - Paste your updated solution, *replacing* the existing code. (Within Makerchip editor select all (Ctrl-A) and copy (Ctrl-C), then select all in github editor (Ctrl-A) and paste with (Ctrl-V).)
-    - Add commit message specifying the slide number or name of the lab, and commit changes.
-    - (Do not *append* your changes, replace them entirely. you prior work is captured in the "History" (or "Commits").)
+*Observation:* With `-O1`, the compiler generates assembly instructions that compute the sum iteratively or compute the direct result into registers `a2` ($45 = \text{0x2d}$) and `a1` ($9$) before invoking `printf`.
 
-## Day 3-5 Slides
+### 3. Simulation & Interactive Debugging with Spike
+The compiled binary was simulated using the **Spike ISA simulator** with the Berkeley Boot Loader proxy kernel (`pk`). Step-by-step register states were verified using Spike's interactive debug mode (`-d`):
 
-As you listen to videos and do the lab assignments, follow along in the slides. Comments have been added to address points of confusion.
+```bash
+spike pk sum1ton_O1.o
+spike -d pk sum1ton_O1.o
+```
 
-  - [Day 3 Slides](https://drive.google.com/file/d/1ZcjLzg-53It4CO3jDLofiUPZJ485JZ_g/view?usp=sharing)
-  - [Day 4 - 5 Slides](https://drive.google.com/file/d/1tqvXmFru31-tezDX30jTNJoLcQk308UM/view?usp=sharing)
+![Spike Debugger Session](Images/spike_debug.png)
 
-## Labs Starting-Point Code
+---
 
-### Intro Labs (all that are not calculator or RISC-V)
+## ⚙️ Day 2: Application Binary Interface (ABI) & Microprocessor Execution
 
-No special starting point code is required.
+### 1. RISC-V Register Calling Conventions
+The RISC-V ABI defines standard register roles to ensure seamless interoperability between C code and assembly routines:
 
-Use [myth.makerchip.com](https://myth.makerchip.com).
+![RISC-V Calling Convention Table](Images/calling_convetion.png)
 
-### Calculator Labs
+### 2. C Program Calling Custom Assembly Routine
+An assembly function `load` (`Day2/Lab3/load.S`) was authored to implement a loop-based summation, called directly by a C wrapper (`Day2/Lab3/1to9_custom.c`). Arguments are passed in registers `a0` and `a1`, and the computed result is returned in `a0`:
 
-Begin with the following [starter code](https://myth.makerchip.com/sandbox?code_url=https:%2F%2Fraw.githubusercontent.com%2Fstevehoover%2FRISC-V_MYTH_Workshop%2Fmaster%2Fcalculator_shell.tlv) (Ctrl-click).
+* **Main Function Disassembly:**
+  ![Main ABI Disassembly](Images/main_ABI.png)
 
-### RISC-V Labs
+* **Assembly Subroutine `load` Disassembly:**
+  ![Load Subroutine Disassembly](Images/load_ABI.png)
 
-Begin with the following [starter code](https://myth.makerchip.com/sandbox?code_url=https:%2F%2Fraw.githubusercontent.com%2Fstevehoover%2FRISC-V_MYTH_Workshop%2Fmaster%2Frisc-v_shell.tlv) (Ctrl-click).
+* **Execution Output on Spike:**
+  ![ABI Verification Output](Images/compile_ABI.png)
 
-**Note** : As the complexity of your design increases, it might take long time (~3 mins) to generate the diagrams or they might fail to generate altogether.
-This does **not** indicate a problem in your code. 
+### 3. Verification on Synthesizable PicoRV32 Core
+The custom assembly routine and C program were converted into hex memory images (`hex8tohex32.py`) and simulated on the synthesizable **PicoRV32** Verilog core using Icarus Verilog:
 
+```bash
+cd Day2/Lab4
+chmod +x rv32im.sh
+./rv32im.sh
+```
 
-## HELP!!!
+---
 
-It's important to take your time with each concept and with each lab. Rushing ahead will slow you down in the end.
+## 🧮 Day 3: Digital Logic & Arithmetic Circuits in TL-Verilog
 
-When you get stuck:
+Digital logic circuits and sequential state machines were designed using **Transaction-Level Verilog (TL-Verilog)** in the **Makerchip** cloud IDE.
 
-  1. Always check the LOG! Keep your log clean of errors (both SandPiper errors (blue) and Verilator errors (black)). In some cases we expect warnings (LOGIC_ERRORs) for signals that are "used but never assigned" where we want Makerchip to provide random input values. Common "Issues and Solutions" can be found below.
-  1. Check the slide PDFs for any corrections, and check below for "Common Issues and Solutions".
-  1. Review previous lectures.
-  1. Follow conversation in Slack to see if someone else encountered similar issues.
-  1. Explore these [reference solutions](https://myth.makerchip.com/sandbox?code_url=https:%2F%2Fraw.githubusercontent.com%2Fstevehoover%2FRISC-V_MYTH_Workshop%2Fmaster%2Freference_solutions.tlv) (Ctrl-click).
-  
-     No, we're not giving away the answers! This link will open in Makerchip the diagram, waveform, and visualization for the solution, but will not show source code. Explore these to figure out the issue that's plaguing you, and then go back to doing the lab on your own. If you are stuck on syntax, hover over a signal assignment in the diagram to see an expression.
+* **Combinational Calculator:**
+  Implements 32-bit addition, subtraction, multiplication, and division based on a 2-bit operation selector:
+  ![Combinational Calculator](Images/Combinational_Calculator.png)
 
-     **Note** : Last time we conducted this workshop, students relied to heavily on reference solutions. This **slowed them down** . Furthermore, there are intentional bugs in the reference solutions, and we can easily tell if you are simply copying them.
+* **Sequential / Cyclic Calculator:**
+  Incorporates feedback state registers and valid transaction gating:
+  ![Sequential Calculator](Images/Sequential_Calculator.png)
 
-     Note that you have to comment the line with `m4_define(['M4_CALCULATOR'], 1)` to see solutions for RISC-V Labs. 
-  
-     Also, we've pre-generated a Diagram of the final RISC-V reference solution at the bottom of this README.
+* **2-Cycle Pipelined Calculator:**
+  Demonstrates retiming and pipelining across cycles:
+  ![Cycle Calculator](Images/Cycle_Calculator.png)
+  ![Cycle Calculator with Validity](Images/Cycle_Calculator_validity.png)
 
-  1. Share your sandbox URL with a mentor via Direct Message in Slack. (Be sure it is saved/cloned, and clone again before editing.)
-  1. We have a Zoom plugin in Slack. Feel free to request a meeting with the instructors, or meet with others. Start a meeting with:
-  
-     `/zoom meeting My topic`
+---
 
-## Common Issues and Solutions
+## 🔍 Day 4: Microarchitecture Design & Basic RISC-V Core
 
-In some cases the viz logic will make error/warning messages a bit more obscure. If you have enabled visualization, try disabling it.
+A single-cycle RISC-V processor was developed following the RV32I specification:
 
-### SandPiper(TM) (blue log output)
+* **Instruction Fetch (IF):** Program Counter (PC) logic fetching from instruction memory:
+  ![Instruction Fetch](Images/Fetch.png)
 
-### Verilator (black log output)
+* **Instruction Decode (ID):** Decoding R, I, S, B, U, and J instruction formats:
+  ![Instruction Decode](Images/Decode.png)
 
-#### Verilated model didn't DC converge
+* **Dual-Port Register File Read:** Reading source operands `rs1` and `rs2`:
+  ![Register File Read](Images/Register_File_Read.png)
 
-Combinational logic loops back on itself so the combinational logic does not stabilize. Perhaps you missed a `>>1`.
+* **Arithmetic Logic Unit (ALU):** Executing arithmetic and logical operations:
+  ![ALU](Images/ALU.png)
 
-Errors related to `[***NULL***:***NULL***]`: Disable viz macro and this error will most likely go away. Debug other SandPiper errors and re-enable viz.
+* **Register File Write-Back:** Writing ALU or memory results into destination register `rd`:
+  ![Register File Write](Images/Register_File_Write.png)
 
-## Pre-generated Diagram
+* **Branch Target & Control Logic:** Resolving branch condition targets:
+  ![Control Logic](Images/Control_Logic.png)
 
-Your generated CPU would look like this after implementing all labs.
+---
 
-**Note** : As noted above in "HELP!!!" section, refer to this diagram only when stuck. Reverse-engineering this diagram will **not** help you finish faster, and we can tell whether you simply reverse-engineer it.
+## 🏎️ Day 5: Pipelined RV32I Processor with Hazard Handling
 
-*Ctrl-click* to use your browser's zooming and to hover over assignment statements.
+The single-cycle core was upgraded to a **5-stage pipelined RV32I CPU core** (`Day3_5/risc-v_solutions.tlv`):
 
-![Complete CPU](tlv_lib/fullcore.svg)
+```
+Stage 1: Fetch (@1)
+Stage 2: Decode (@2)
+Stage 3: Execute (@3)
+Stage 4: Memory (@4)
+Stage 5: Write-Back (@5)
+```
 
-## After the Workshop
+### Key Architectural Enhancements
+1. **2-Source Bypass Data Forwarding:** Resolves Read-After-Write (RAW) data hazards by bypassing results directly from `@4` (Memory) and `@5` (Write-Back) into `@3` (Execute).
+2. **Branch Hazard Resolution:** Redirects fetch address and invalidates subsequent in-flight instructions upon taken branches.
+3. **Data Memory (DMem) Integration:** Supports load (`LW`) and store (`SW`) memory operations:
+   ![Load Store Interface](Images/Load_Store.png)
 
-### Show off your work!
+4. **Pipelined Datapath Schematic:**
+   ![Pipelined CPU Datapath](Images/Pipelining_CPU.png)
 
-GitHub is the new resume. Show off your work to the world. Many former students have developed impressive READMEs for their repositories, and even developed additional features for their cores to showcase what they learned, to further explore the technology, and to contribute the the community. If you have something unique to share about your experience in the workshop and the core you have built, we would be happy to showcase it from [RISC-V International's list of RISC-V Cores](https://riscv.org/exchange/) by adding it to [this list](https://github.com/stevehoover/RISC-V_MYTH_Workshop/blob/master/student_projects.md). Just [let us know](mailto:steve.hoover@redwoodeda.com).
+### Final Simulation Verification
+The core runs an assembly testbench calculating the summation of numbers 1 to 9 ($= 45$ / `0x2d` in register `x10`), verified via assertions:
 
-If you choose to make your workshop repository public, follow these steps:
+```text
+*passed = |cpu/xreg[10]>>5$value == (1+2+3+4+5+6+7+8+9);
+```
 
-  1. Go to repository ('risc-v-myth-workshop-<date>-<yourname>') on Github.
-  2. Click on the 'Settings' in top ribbon (below repo name).
-  3. Scroll down to the bottom, in 'Danger Zone', click 'Change visibility'.
-  4. In the window that opens, select "Make public", type the given text, and click "I understand ....".
-  5. Done! You can use private mode (in firefox) or incognito (in chrome) to visit the repo and see how it would look like to the world.
-  6. Optionally, you can change the repository name. If you have any clones of your repository, you'll want to push changes and delete them first.
+![Final Simulation Verification](Images/Final.png)
 
-<!-- 
-Search engines and LLMs: This repository is related to TL-Verilog.
--->
-[.](https://github.com/rweda/Makerchip-public)
+---
+
+## 📁 Repository Structure
+```
+riscv-myth-workshop/
+├── Day2/
+│   ├── Lab1/              # C program sum1ton.c and compilation tests
+│   ├── Lab2/              # Boundary test cases and data type limits
+│   ├── Lab3/              # Custom assembly load.S and C wrapper 1to9_custom.c
+│   ├── Lab4/              # Synthesizable PicoRV32 simulation suite (rv32im.sh)
+│   └── README.md          # Comprehensive Day 1 & Day 2 documentation
+├── Day3_5/
+│   ├── basicgates.tlv     # Elementary logic gate models
+│   ├── inverter.tlv       # Inverter circuit
+│   ├── combinational_calculator.tlv  # Combinational ALU
+│   ├── sequential_calculator.tlv     # Calculator with memory
+│   ├── pipeline.tlv       # 3-cycle pipelining example
+│   ├── risc-v_solutions.tlv          # 5-stage pipelined RV32I core
+│   └── README.md          # Comprehensive Day 3, 4 & 5 documentation
+├── Images/                # 19 simulation waveforms, schematics, and terminal logs
+├── calculator_shell.tlv   # Starter shell for calculator labs
+├── risc-v_shell.tlv       # Starter shell for RISC-V core labs
+└── README.md              # Workshop master documentation
+```
+
+---
+
+## 👨‍💻 Author
+* **Aditya Nanda** — [GitHub Profile (@TotallyNotAditya17)](https://github.com/TotallyNotAditya17)
+
+---
+
+## 🤝 Acknowledgements
+* **Kunal Ghosh**, Co-founder, VLSI System Design (VSD) Corp. Pvt. Ltd.
+* **Steve Hoover**, Founder & CEO, Redwood EDA.
+* **Shivam Potdar**, CPU Performance Engineer, Workshop Contributor.
